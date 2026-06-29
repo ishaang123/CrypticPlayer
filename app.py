@@ -124,7 +124,6 @@ HTML_TEMPLATE = """
             max-width: 540px;
         }
 
-        /* Structured Accessibility Forms for Search Engine Parsing */
         .search-form { width: 100%; }
 
         .search-wrapper {
@@ -245,9 +244,9 @@ HTML_TEMPLATE = """
         }
 
         .close-stage-btn:hover {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: rgba(239, 68, 68, 0.3);
-            color: #ef4444;
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.3);
+            color: var(--accent);
         }
 
         .aspect-ratio-box {
@@ -261,7 +260,6 @@ HTML_TEMPLATE = """
             border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
-        /* Continuous Skeleton Pulse for Loading Frames */
         .iframe-loader {
             position: absolute;
             top: 0;
@@ -301,6 +299,92 @@ HTML_TEMPLATE = """
             background: transparent;
         }
 
+        /* ── NEW MINI-PLAYER SYSTEM STYLES ── */
+        .mini-player-wrapper {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 340px;
+            height: 191px; /* 16:9 Aspect Ratio */
+            z-index: 2000;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08);
+            transform: translateY(150%);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.4s var(--transition), opacity 0.4s ease;
+        }
+
+        .mini-player-wrapper.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .mini-player-wrapper #mini-video-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .mini-player-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 40%, rgba(0,0,0,0.6) 100%);
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px;
+        }
+
+        .mini-player-wrapper:hover .mini-player-controls {
+            opacity: 1;
+        }
+
+        .mini-ctrl-top {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .mini-btn {
+            background: rgba(15, 15, 25, 0.75);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s;
+        }
+
+        .mini-btn:hover {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .mini-btn.close:hover {
+            background: #ef4444;
+            color: #fff;
+            border-color: #ef4444;
+        }
+
         .shelf-header {
             font-size: 14px;
             font-weight: 700;
@@ -327,7 +411,6 @@ HTML_TEMPLATE = """
             gap: 24px;
         }
 
-        /* Transformed markup links to semantic <article> tags */
         .video-card {
             background: var(--bg-surface);
             border-radius: 16px;
@@ -421,6 +504,7 @@ HTML_TEMPLATE = """
             header { padding: 16px 24px; flex-direction: column; gap: 14px; }
             .search-container { max-width: 100%; }
             main { padding: 24px; }
+            .mini-player-wrapper { width: 260px; height: 146px; bottom: 16px; right: 16px; }
         }
     </style>
 </head>
@@ -444,14 +528,14 @@ HTML_TEMPLATE = """
     <main>
         <section class="theater-stage" id="theater-stage" aria-label="Media Player Stage">
             <div class="theater-controls">
-                <button class="close-stage-btn" onclick="hidePlayerStage()">Dismiss Player ×</button>
+                <button class="close-stage-btn" onclick="switchToMiniPlayer()">Minimize to Mini-Player ↓</button>
             </div>
-            <div class="aspect-ratio-box">
+            <div class="aspect-ratio-box" id="main-player-box">
                 <div class="iframe-loader" id="iframe-loader-view">
                     <div class="spinner"></div>
                     <p style="font-size: 11px; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase;">Loading Media Buffer...</p>
                 </div>
-                <iframe id="video-embed" src="" allowfullscreen title="Interactive Media Broadcast Stream Player"></iframe>
+                <div id="player-iframe-anchor"></div>
             </div>
         </section>
 
@@ -461,8 +545,21 @@ HTML_TEMPLATE = """
         </section>
     </main>
 
+    <div class="mini-player-wrapper" id="mini-player">
+        <div class="mini-player-controls">
+            <div class="mini-ctrl-top">
+                <button class="mini-btn" onclick="restoreToTheaterView()" title="Expand view">⛶</button>
+                <button class="mini-btn close" onclick="closePlayerEntirely()" title="Close broadcast">×</button>
+            </div>
+        </div>
+        <div id="mini-video-container"></div>
+    </div>
+
     <script>
         let currentFocus = -1;
+        let activeVideoId = null;
+        let activeSource = null;
+        let isMiniPlayerActive = false;
 
         window.addEventListener('DOMContentLoaded', () => parseState(window.location.search));
         window.addEventListener('popstate', () => parseState(window.location.search));
@@ -471,10 +568,14 @@ HTML_TEMPLATE = """
         const suggestBox = document.getElementById('suggestions-box');
         const topBar = document.getElementById('top-loading-bar');
         const iframeLoader = document.getElementById('iframe-loader-view');
-        const iframeEl = document.getElementById('video-embed');
+        
+        // Dynamic Single Shared Iframe instance initialization 
+        const sharedIframe = document.createElement('iframe');
+        sharedIframe.id = "video-embed";
+        sharedIframe.setAttribute('allowfullscreen', '');
+        sharedIframe.setAttribute('title', 'Interactive Media Broadcast Stream Player');
 
-        // Capture iframe initialization completion event to safely clear visual overlay spinner state
-        iframeEl.addEventListener('load', () => {
+        sharedIframe.addEventListener('load', () => {
             iframeLoader.style.opacity = '0';
             setTimeout(() => { iframeLoader.style.display = 'none'; }, 400);
             finishGlobalLoader();
@@ -595,7 +696,7 @@ HTML_TEMPLATE = """
                 document.getElementById('shelf-title').innerText = `Search results for "${q}"`;
                 fetchUnifiedFeed(`/api/search?q=${encodeURIComponent(q)}`, false);
             } else {
-                hidePlayerStage();
+                closePlayerEntirely();
                 document.getElementById('shelf-title').innerText = "Featured Content Feed";
                 fetchUnifiedFeed('/api/trending', false);
             }
@@ -604,7 +705,7 @@ HTML_TEMPLATE = """
         function routeToHome() {
             inputEl.value = '';
             history.pushState({}, '', window.location.pathname);
-            hidePlayerStage();
+            closePlayerEntirely();
             document.getElementById('shelf-title').innerText = "Featured Content Feed";
             fetchUnifiedFeed('/api/trending', false);
         }
@@ -618,7 +719,7 @@ HTML_TEMPLATE = """
         }
 
         function fetchUnifiedFeed(endpoint, resetPlayer) {
-            if (resetPlayer) hidePlayerStage();
+            if (resetPlayer) closePlayerEntirely();
             triggerGlobalLoader();
             const grid = document.getElementById('video-grid');
             grid.innerHTML = '';
@@ -685,27 +786,81 @@ HTML_TEMPLATE = """
         }
 
         function renderPlayer(id, source) {
-            triggerGlobalLoader();
+            // Avoid reloading iframe buffer if user is expanding existing session out of mini player
+            const identitySwitch = (activeVideoId !== id || activeSource !== source);
+            activeVideoId = id;
+            activeSource = source;
+
+            // Close down mini player framework view if showing
+            document.getElementById('mini-player').classList.remove('active');
+            isMiniPlayerActive = false;
+
             const stage = document.getElementById('theater-stage');
-            
-            // Re-initialize loader views on iframe load triggers
-            iframeLoader.style.display = 'flex';
-            iframeLoader.style.opacity = '1';
-            
-            if (source === 'youtube') {
-                iframeEl.src = `https://invidious.tiekoetter.com/embed/${id}`;
-            } else if (source === 'dailymotion') {
-                iframeEl.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
-            }
-            
             stage.style.display = 'block';
+
+            if (identitySwitch) {
+                triggerGlobalLoader();
+                iframeLoader.style.display = 'flex';
+                iframeLoader.style.opacity = '1';
+                
+                if (source === 'youtube') {
+                    sharedIframe.src = `https://invidious.tiekoetter.com/embed/${id}`;
+                } else if (source === 'dailymotion') {
+                    sharedIframe.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
+                }
+            }
+
+            document.getElementById('player-iframe-anchor').appendChild(sharedIframe);
             stage.scrollIntoView({ behavior: 'smooth' });
         }
 
-        function hidePlayerStage() {
+        /* ── NEW MINI-PLAYER SCRIPT ACTIONS ── */
+        function switchToMiniPlayer() {
+            if (!activeVideoId) return;
+
+            // Hide the massive top main structural play deck section
             document.getElementById('theater-stage').style.display = 'none';
-            iframeEl.src = '';
+
+            // Append live frame straight down inside mini window anchor 
+            document.getElementById('mini-video-container').appendChild(sharedIframe);
             
+            // Pop layout configuration active
+            document.getElementById('mini-player').classList.add('active');
+            isMiniPlayerActive = true;
+
+            // Re-map router history path params cleanly without dropping search states
+            updatePathWithoutVideo();
+        }
+
+        function restoreToTheaterView() {
+            if (!activeVideoId) return;
+            // Elevate back to basic path parameters setup strings
+            const params = new URLSearchParams(window.location.search);
+            const q = params.get('q');
+            let path = `?v=${activeVideoId}&src=${activeSource}`;
+            if (q) path = `?q=${encodeURIComponent(q)}&v=${activeVideoId}&src=${activeSource}`;
+            history.pushState({}, '', path);
+
+            renderPlayer(activeVideoId, activeSource);
+        }
+
+        function closePlayerEntirely() {
+            document.getElementById('theater-stage').style.display = 'none';
+            document.getElementById('mini-player').classList.remove('active');
+            
+            sharedIframe.src = '';
+            if(sharedIframe.parentNode) {
+                sharedIframe.parentNode.removeChild(sharedIframe);
+            }
+
+            activeVideoId = null;
+            activeSource = null;
+            isMiniPlayerActive = false;
+
+            updatePathWithoutVideo();
+        }
+
+        function updatePathWithoutVideo() {
             const params = new URLSearchParams(window.location.search);
             const q = params.get('q');
             if (q) {
