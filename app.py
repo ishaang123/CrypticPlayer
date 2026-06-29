@@ -18,13 +18,12 @@ HTML_TEMPLATE = """
     <meta name="description" content="Discover, search, and aggregate video feeds across multiple platforms seamlessly on CrypticPlayer. Experience decentralized fluid media playback in a high-fidelity theater view.">
     <meta name="keywords" content="CrypticPlayer, streaming hub, universal media index, dual network video player, video search engine">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://crypticplayer.example.com/">
+    <link rel="canonical" href="https://cryptic-player.vercel.app/">
     
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://crypticplayer.example.com/">
+    <meta property="og:url" content="https://cryptic-player.vercel.app//">
     <meta property="og:title" content="CrypticPlayer — Next-Gen Media Nexus">
     <meta property="og:description" content="Aggregate multi-platform videos cleanly into one unified feed. Smooth web native layout with seamless routing.">
-    <meta property="og:image" content="https://crypticplayer.example.com/og-cover.jpg">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="CrypticPlayer — Next-Gen Media Nexus">
@@ -73,7 +72,6 @@ HTML_TEMPLATE = """
             -webkit-font-smoothing: antialiased;
         }
 
-        /* YouTube-Style Top Progress Bar Spinner Loader */
         #top-loading-bar {
             position: fixed;
             top: 0;
@@ -225,10 +223,22 @@ HTML_TEMPLATE = """
             position: relative;
         }
 
+        /* Prevent layout shift when theater stage closes but iframe remains active in mini mode */
+        .theater-stage.mini-mode {
+            display: block !important;
+            margin-bottom: 0;
+            height: 0;
+            overflow: visible;
+        }
+
         .theater-controls {
             display: flex;
             justify-content: flex-end;
             margin-bottom: 12px;
+        }
+
+        .theater-stage.mini-mode .theater-controls {
+            display: none;
         }
 
         .close-stage-btn {
@@ -249,15 +259,52 @@ HTML_TEMPLATE = """
             color: var(--accent);
         }
 
+        /* ── DYNAMIC IN-PLACE IFRAME CONTAINER ── */
         .aspect-ratio-box {
             position: relative;
             width: 100%;
             padding-top: 56.25%;
             background: #000;
             border-radius: 20px;
-            overflow: hidden;
             box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
             border: 1px solid rgba(255, 255, 255, 0.04);
+            transition: all 0.5s var(--transition);
+            z-index: 2;
+        }
+
+        .aspect-ratio-box iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 20px;
+            background: transparent;
+            z-index: 2;
+        }
+
+        /* ── HARDWARE-ACCELERATED TRANSITION TO MINI-PLAYER WITHOUT RE-ROOTING ── */
+        .theater-stage.mini-mode .aspect-ratio-box {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 340px;
+            height: 191px;
+            padding-top: 0;
+            z-index: 2000;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08);
+            animation: miniFlyIn 0.4s var(--transition) forwards;
+        }
+
+        .theater-stage.mini-mode .aspect-ratio-box iframe {
+            border-radius: 16px;
+        }
+
+        @keyframes miniFlyIn {
+            from { transform: translateY(60px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
         }
 
         .iframe-loader {
@@ -274,6 +321,11 @@ HTML_TEMPLATE = """
             z-index: 5;
             transition: opacity 0.4s var(--transition);
             pointer-events: none;
+            border-radius: 20px;
+        }
+
+        .theater-stage.mini-mode .iframe-loader {
+            display: none !important;
         }
 
         .iframe-loader .spinner {
@@ -288,65 +340,29 @@ HTML_TEMPLATE = """
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .aspect-ratio-box iframe {
+        /* ── FLOATING OVERLAY HUD CONTROLS ── */
+        .mini-hud-controls {
+            display: none;
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-            z-index: 2;
-            background: transparent;
-        }
-
-        /* ── NEW MINI-PLAYER SYSTEM STYLES ── */
-        .mini-player-wrapper {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 340px;
-            height: 191px; /* 16:9 Aspect Ratio */
-            z-index: 2000;
-            background: #000;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08);
-            transform: translateY(150%);
-            opacity: 0;
-            pointer-events: none;
-            transition: transform 0.4s var(--transition), opacity 0.4s ease;
-        }
-
-        .mini-player-wrapper.active {
-            transform: translateY(0);
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        .mini-player-wrapper #mini-video-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-
-        .mini-player-controls {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 40%, rgba(0,0,0,0.6) 100%);
             z-index: 10;
             opacity: 0;
             transition: opacity 0.25s ease;
-            display: flex;
             flex-direction: column;
             justify-content: space-between;
             padding: 10px;
+            border-radius: 16px;
+            pointer-events: none;
         }
 
-        .mini-player-wrapper:hover .mini-player-controls {
+        .theater-stage.mini-mode .mini-hud-controls {
+            display: flex;
+        }
+
+        .aspect-ratio-box:hover .mini-hud-controls {
             opacity: 1;
+            pointer-events: all;
         }
 
         .mini-ctrl-top {
@@ -356,7 +372,7 @@ HTML_TEMPLATE = """
         }
 
         .mini-btn {
-            background: rgba(15, 15, 25, 0.75);
+            background: rgba(15, 15, 25, 0.85);
             border: 1px solid rgba(255,255,255,0.1);
             color: #fff;
             width: 28px;
@@ -504,7 +520,7 @@ HTML_TEMPLATE = """
             header { padding: 16px 24px; flex-direction: column; gap: 14px; }
             .search-container { max-width: 100%; }
             main { padding: 24px; }
-            .mini-player-wrapper { width: 260px; height: 146px; bottom: 16px; right: 16px; }
+            .theater-stage.mini-mode .aspect-ratio-box { width: 260px; height: 146px; bottom: 16px; right: 16px; }
         }
     </style>
 </head>
@@ -535,7 +551,15 @@ HTML_TEMPLATE = """
                     <div class="spinner"></div>
                     <p style="font-size: 11px; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase;">Loading Media Buffer...</p>
                 </div>
-                <div id="player-iframe-anchor"></div>
+                
+                <iframe id="video-embed" src="" allowfullscreen title="Interactive Media Broadcast Stream Player"></iframe>
+                
+                <div class="mini-hud-controls">
+                    <div class="mini-ctrl-top">
+                        <button class="mini-btn" onclick="restoreToTheaterView()" title="Expand view">⛶</button>
+                        <button class="mini-btn close" onclick="closePlayerEntirely()" title="Close broadcast">×</button>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -545,21 +569,10 @@ HTML_TEMPLATE = """
         </section>
     </main>
 
-    <div class="mini-player-wrapper" id="mini-player">
-        <div class="mini-player-controls">
-            <div class="mini-ctrl-top">
-                <button class="mini-btn" onclick="restoreToTheaterView()" title="Expand view">⛶</button>
-                <button class="mini-btn close" onclick="closePlayerEntirely()" title="Close broadcast">×</button>
-            </div>
-        </div>
-        <div id="mini-video-container"></div>
-    </div>
-
     <script>
         let currentFocus = -1;
         let activeVideoId = null;
         let activeSource = null;
-        let isMiniPlayerActive = false;
 
         window.addEventListener('DOMContentLoaded', () => parseState(window.location.search));
         window.addEventListener('popstate', () => parseState(window.location.search));
@@ -568,14 +581,10 @@ HTML_TEMPLATE = """
         const suggestBox = document.getElementById('suggestions-box');
         const topBar = document.getElementById('top-loading-bar');
         const iframeLoader = document.getElementById('iframe-loader-view');
-        
-        // Dynamic Single Shared Iframe instance initialization 
-        const sharedIframe = document.createElement('iframe');
-        sharedIframe.id = "video-embed";
-        sharedIframe.setAttribute('allowfullscreen', '');
-        sharedIframe.setAttribute('title', 'Interactive Media Broadcast Stream Player');
+        const stage = document.getElementById('theater-stage');
+        const iframeEl = document.getElementById('video-embed');
 
-        sharedIframe.addEventListener('load', () => {
+        iframeEl.addEventListener('load', () => {
             iframeLoader.style.opacity = '0';
             setTimeout(() => { iframeLoader.style.display = 'none'; }, 400);
             finishGlobalLoader();
@@ -786,16 +795,12 @@ HTML_TEMPLATE = """
         }
 
         function renderPlayer(id, source) {
-            // Avoid reloading iframe buffer if user is expanding existing session out of mini player
             const identitySwitch = (activeVideoId !== id || activeSource !== source);
             activeVideoId = id;
             activeSource = source;
 
-            // Close down mini player framework view if showing
-            document.getElementById('mini-player').classList.remove('active');
-            isMiniPlayerActive = false;
-
-            const stage = document.getElementById('theater-stage');
+            // Strip mini positioning setup if active
+            stage.classList.remove('mini-mode');
             stage.style.display = 'block';
 
             if (identitySwitch) {
@@ -804,37 +809,28 @@ HTML_TEMPLATE = """
                 iframeLoader.style.opacity = '1';
                 
                 if (source === 'youtube') {
-                    sharedIframe.src = `https://invidious.tiekoetter.com/embed/${id}`;
+                    iframeEl.src = `https://invidious.tiekoetter.com/embed/${id}`;
                 } else if (source === 'dailymotion') {
-                    sharedIframe.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
+                    iframeEl.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
                 }
             }
 
-            document.getElementById('player-iframe-anchor').appendChild(sharedIframe);
             stage.scrollIntoView({ behavior: 'smooth' });
         }
 
-        /* ── NEW MINI-PLAYER SCRIPT ACTIONS ── */
+        /* ── CORRECTION: PURE-CSS SWITCH SYSTEM PREVENTS IFRAME RESET ── */
         function switchToMiniPlayer() {
             if (!activeVideoId) return;
-
-            // Hide the massive top main structural play deck section
-            document.getElementById('theater-stage').style.display = 'none';
-
-            // Append live frame straight down inside mini window anchor 
-            document.getElementById('mini-video-container').appendChild(sharedIframe);
             
-            // Pop layout configuration active
-            document.getElementById('mini-player').classList.add('active');
-            isMiniPlayerActive = true;
+            // Toggle class layout change. Iframe stays in place, CSS repositions it.
+            stage.classList.add('mini-mode');
 
-            // Re-map router history path params cleanly without dropping search states
             updatePathWithoutVideo();
         }
 
         function restoreToTheaterView() {
             if (!activeVideoId) return;
-            // Elevate back to basic path parameters setup strings
+            
             const params = new URLSearchParams(window.location.search);
             const q = params.get('q');
             let path = `?v=${activeVideoId}&src=${activeSource}`;
@@ -845,17 +841,12 @@ HTML_TEMPLATE = """
         }
 
         function closePlayerEntirely() {
-            document.getElementById('theater-stage').style.display = 'none';
-            document.getElementById('mini-player').classList.remove('active');
-            
-            sharedIframe.src = '';
-            if(sharedIframe.parentNode) {
-                sharedIframe.parentNode.removeChild(sharedIframe);
-            }
+            stage.classList.remove('mini-mode');
+            stage.style.display = 'none';
+            iframeEl.src = '';
 
             activeVideoId = null;
             activeSource = null;
-            isMiniPlayerActive = false;
 
             updatePathWithoutVideo();
         }
