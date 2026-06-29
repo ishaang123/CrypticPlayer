@@ -19,7 +19,7 @@ HTML_TEMPLATE = """
     <meta name="keywords" content="CrypticPlayer, streaming hub, universal media index, dual network video player, video search engine">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://cryptic-player.vercel.app/">
-    <meta name="google-site-verification" content="9rwO2NSESd2bmgibHGP-rKGpUm8z3wo-vOR4NH-JOkY" />
+    <meta name="google-site-verification" content="9rwO2NSESd2bmgibHGP-rKGpUm8z3wo-vOR4NH-JOkY" /> 
     
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://cryptic-player.vercel.app//">
