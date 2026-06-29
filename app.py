@@ -558,7 +558,7 @@ HTML_TEMPLATE = """
             
             if (source === 'youtube') {
                 // Uses the standard clean Invidious player embed routing format
-                embedFrame.src = `https://www.youtube.com/embed/${id}?autoplay=1&modestbranding=1&rel=0`;
+                embedFrame.src = `https://invidious.tiekoetter.com/embed/${id}`;
             } else if (source === 'dailymotion') {
                 // Uses your dedicated ishaan2 proxy pipeline space to download/stream
                 embedFrame.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
