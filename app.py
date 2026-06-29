@@ -223,7 +223,6 @@ HTML_TEMPLATE = """
             position: relative;
         }
 
-        /* Prevent layout shift when theater stage closes but iframe remains active in mini mode */
         .theater-stage.mini-mode {
             display: block !important;
             margin-bottom: 0;
@@ -259,7 +258,6 @@ HTML_TEMPLATE = """
             color: var(--accent);
         }
 
-        /* ── DYNAMIC IN-PLACE IFRAME CONTAINER ── */
         .aspect-ratio-box {
             position: relative;
             width: 100%;
@@ -284,7 +282,6 @@ HTML_TEMPLATE = """
             z-index: 2;
         }
 
-        /* ── HARDWARE-ACCELERATED TRANSITION TO MINI-PLAYER WITHOUT RE-ROOTING ── */
         .theater-stage.mini-mode .aspect-ratio-box {
             position: fixed;
             bottom: 24px;
@@ -340,7 +337,6 @@ HTML_TEMPLATE = """
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ── FLOATING OVERLAY HUD CONTROLS ── */
         .mini-hud-controls {
             display: none;
             position: absolute;
@@ -705,16 +701,31 @@ HTML_TEMPLATE = """
                 document.getElementById('shelf-title').innerText = `Search results for "${q}"`;
                 fetchUnifiedFeed(`/api/search?q=${encodeURIComponent(q)}`, false);
             } else {
-                closePlayerEntirely();
+                // If popping back to home via browser back/forward buttons, mini-player auto-triggers
+                if (activeVideoId) {
+                    switchToMiniPlayer();
+                } else {
+                    closePlayerEntirely();
+                }
                 document.getElementById('shelf-title').innerText = "Featured Content Feed";
                 fetchUnifiedFeed('/api/trending', false);
             }
         }
 
+        /* ── SYSTEM UPDATE: AUTO MINI-PLAYER LOGIC FOR NAV CLICKS ── */
         function routeToHome() {
             inputEl.value = '';
-            history.pushState({}, '', window.location.pathname);
-            closePlayerEntirely();
+            
+            if (activeVideoId) {
+                // Video running? Put it in the mini player and update clean history path
+                history.pushState({}, '', window.location.pathname);
+                switchToMiniPlayer();
+            } else {
+                // No video? Clear stage completely
+                history.pushState({}, '', window.location.pathname);
+                closePlayerEntirely();
+            }
+
             document.getElementById('shelf-title').innerText = "Featured Content Feed";
             fetchUnifiedFeed('/api/trending', false);
         }
@@ -722,9 +733,18 @@ HTML_TEMPLATE = """
         function commitSearch() {
             const query = inputEl.value.trim();
             if (!query) return;
-            history.pushState({}, '', `?q=${encodeURIComponent(query)}`);
+
+            if (activeVideoId) {
+                // Searching while watching? Push to background mini-player
+                history.pushState({}, '', `?q=${encodeURIComponent(query)}`);
+                switchToMiniPlayer();
+            } else {
+                history.pushState({}, '', `?q=${encodeURIComponent(query)}`);
+                closePlayerEntirely();
+            }
+
             document.getElementById('shelf-title').innerText = `Search results for "${query}"`;
-            fetchUnifiedFeed(`/api/search?q=${encodeURIComponent(query)}`, true);
+            fetchUnifiedFeed(`/api/search?q=${encodeURIComponent(query)}`, false);
         }
 
         function fetchUnifiedFeed(endpoint, resetPlayer) {
@@ -799,7 +819,6 @@ HTML_TEMPLATE = """
             activeVideoId = id;
             activeSource = source;
 
-            // Strip mini positioning setup if active
             stage.classList.remove('mini-mode');
             stage.style.display = 'block';
 
@@ -818,13 +837,9 @@ HTML_TEMPLATE = """
             stage.scrollIntoView({ behavior: 'smooth' });
         }
 
-        /* ── CORRECTION: PURE-CSS SWITCH SYSTEM PREVENTS IFRAME RESET ── */
         function switchToMiniPlayer() {
             if (!activeVideoId) return;
-            
-            // Toggle class layout change. Iframe stays in place, CSS repositions it.
             stage.classList.add('mini-mode');
-
             updatePathWithoutVideo();
         }
 
