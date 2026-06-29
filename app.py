@@ -6,6 +6,7 @@ app = Flask(__name__)
 
 # Configured backends
 YOUTUBE_PROXY_API = "https://yt.chocolatemoo53.com"
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -15,7 +16,7 @@ HTML_TEMPLATE = """
     <title>CrypticPlayer // Next-Gen Media Nexus</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-base: #030307;
@@ -141,7 +142,6 @@ HTML_TEMPLATE = """
             box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
         }
 
-        /* Suggestions Dropdown */
         .suggestions-box {
             position: absolute;
             top: calc(100% + 8px);
@@ -333,16 +333,6 @@ HTML_TEMPLATE = """
             animation: pulse 1.6s infinite linear;
         }
 
-        @keyframes pulse {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(40px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
         @media (max-width: 900px) {
             header { padding: 20px; flex-direction: column; gap: 16px; }
             .search-container { max-width: 100%; }
@@ -383,7 +373,6 @@ HTML_TEMPLATE = """
         const inputEl = document.getElementById('query-input');
         const suggestBox = document.getElementById('suggestions-box');
 
-        // Dynamic Suggestion Logic
         inputEl.addEventListener('input', () => {
             const val = inputEl.value.trim();
             if (!val) {
@@ -391,7 +380,6 @@ HTML_TEMPLATE = """
                 return;
             }
 
-            // JSONP binding to call YouTube suggestion clusters securely inside frontend execution context
             const script = document.createElement('script');
             script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(val)}&callback=handleSuggestions`;
             document.body.appendChild(script);
@@ -422,7 +410,6 @@ HTML_TEMPLATE = """
             suggestBox.style.display = 'block';
         }
 
-        // Handle Arrow key navigation inside suggestions box
         inputEl.addEventListener('keydown', (e) => {
             const items = suggestBox.getElementsByClassName('suggestion-item');
             if (e.key === 'ArrowDown') {
@@ -473,9 +460,10 @@ HTML_TEMPLATE = """
             const params = new URLSearchParams(searchQuery);
             const v = params.get('v');
             const q = params.get('q');
+            const src = params.get('src') || 'youtube';
 
             if (v) {
-                renderPlayer(v);
+                renderPlayer(v, src);
             } else if (q) {
                 inputEl.value = q;
                 fetchUnifiedFeed(`/api/search?q=${encodeURIComponent(q)}`, false);
@@ -529,7 +517,7 @@ HTML_TEMPLATE = """
                     data.forEach(item => {
                         const card = document.createElement('div');
                         card.className = 'video-card';
-                        card.onclick = () => selectVideo(item.id);
+                        card.onclick = () => selectVideo(item.id, item.source);
                         
                         let subtitle = item.source.toUpperCase();
                         if (item.deezer_meta) {
@@ -554,19 +542,28 @@ HTML_TEMPLATE = """
                 });
         }
 
-        function selectVideo(id) {
+        function selectVideo(id, source) {
             const params = new URLSearchParams(window.location.search);
             const q = params.get('q');
-            let newPath = `?v=${id}`;
-            if (q) newPath = `?q=${encodeURIComponent(q)}&v=${id}`;
+            let newPath = `?v=${id}&src=${source}`;
+            if (q) newPath = `?q=${encodeURIComponent(q)}&v=${id}&src=${source}`;
             
             history.pushState({}, '', newPath);
-            renderPlayer(id);
+            renderPlayer(id, source);
         }
 
-        function renderPlayer(id) {
+        function renderPlayer(id, source) {
             const stage = document.getElementById('theater-stage');
-            document.getElementById('video-embed').src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
+            const embedFrame = document.getElementById('video-embed');
+            
+            if (source === 'youtube') {
+                // Uses the standard clean Invidious player embed routing format
+                embedFrame.src = `https://www.youtube.com/embed/${id}?autoplay=1&modestbranding=1&rel=0`;
+            } else if (source === 'dailymotion') {
+                // Uses your dedicated ishaan2 proxy pipeline space to download/stream
+                embedFrame.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
+            }
+            
             stage.style.display = 'block';
             stage.scrollIntoView({ behavior: 'smooth' });
         }
@@ -669,7 +666,6 @@ def search():
     if not query:
         return jsonify([])
 
-    # Smart Check: Only query/enhance through Deezer if explicitly looking for audio content
     music_keywords = ["song", "music", "lyrics", "audio", "mv", "track", "remix"]
     is_music_intent = any(k in query.lower() for k in music_keywords)
 
@@ -677,7 +673,6 @@ def search():
     if is_music_intent:
         music_match = check_deezer_music(query)
     
-    # Rebuild query strings depending on intent context
     if music_match:
         enhanced_query = f"{music_match['track']} {music_match['artist']}"
     else:
@@ -692,20 +687,17 @@ def search():
         yt_results = future_yt.result()
         dm_results = future_dm.result()
 
-    # Apply strict validation mapping logic to prevent random cross-labeling
     if music_match:
         track_token = music_match["track"].lower()
         artist_token = music_match["artist"].lower()
         
         for item in (yt_results + dm_results):
             title_lower = item["title"].lower()
-            # Must strictly contain both tracking strings to claim an index match badge
             if track_token in title_lower and artist_token in title_lower:
                 item["deezer_meta"] = music_match
                 if not item["thumbnail"]:
                     item["thumbnail"] = music_match["album_art"]
 
-    # Interleave results dynamically, prioritizing strict verified matches if they exist
     all_videos = yt_results + dm_results
     sorted_videos = sorted(all_videos, key=lambda x: 0 if x.get("deezer_meta") else 1)
 
