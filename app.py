@@ -826,13 +826,18 @@ HTML_TEMPLATE = """
                 triggerGlobalLoader();
                 iframeLoader.style.display = 'flex';
                 iframeLoader.style.opacity = '1';
-                
                 if (source === 'youtube') {
-                    iframeEl.src = `https://invidious.tiekoetter.com/embed/${id}`;
-                } else if (source === 'dailymotion') {
-                    iframeEl.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
-                }
-            }
+    // Set the clean embed URL
+    iframeEl.src = `https://invidious.tiekoetter.com/embed/${id}`;
+    
+    // Apply the sandbox restriction to strip custom player layouts/text
+    iframeEl.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms');
+} else if (source === 'dailymotion') {
+    iframeEl.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
+    
+    // Optional: Remove sandbox for dailymotion if it needs full permissions
+    iframeEl.removeAttribute('sandbox');
+}
 
             stage.scrollIntoView({ behavior: 'smooth' });
         }
