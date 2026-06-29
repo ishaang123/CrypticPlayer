@@ -5,7 +5,7 @@ from flask import Flask, jsonify, render_template_string, request
 app = Flask(__name__)
 
 # Fallback pool for public YouTube data scraping infrastructure
-YOUTUBE_PROXY_API = "https://inv.nadeko.net/"
+YOUTUBE_PROXY_API = "https://yt.chocolatemoo53.com/"
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -412,16 +412,39 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# Helper function to query YouTube data safely
+# Updated Helper function to match your exact API payload structure
 def get_youtube_data(endpoint):
     try:
         r = requests.get(f"{YOUTUBE_PROXY_API}/api/v1/{endpoint}", timeout=4)
         if r.status_code == 200:
-            res = r.json()
-            items = res.get("textualResults", res) if "search" in endpoint else res
-            return [{"id": v["url"].split("=")[-1], "title": v["title"], "thumbnail": v["thumbnail"], "source": "youtube"} for v in items if "url" in v or "title" in v][:8]
-    except Exception:
-        pass
+            raw_data = r.json()
+            
+            # If the response is wrapped inside an object, get the list, otherwise use it directly
+            items = raw_data.get("textualResults", raw_data) if isinstance(raw_data, dict) else raw_data
+            
+            parsed_videos = []
+            for item in items:
+                # 1. Skip channels, only look for videos
+                if item.get("type") == "video":
+                    
+                    # 2. Extract thumbnail safely from the videoThumbnails array
+                    thumbnails = item.get("videoThumbnails", [])
+                    # Try to grab a medium/high quality one, fallback to the first one available
+                    thumb_url = ""
+                    if thumbnails:
+                        # Find a good compromise size or default to index 0
+                        thumb_url = next((t["url"] for t in thumbnails if t.get("quality") == "medium"), thumbnails[0]["url"])
+                    
+                    parsed_videos.append({
+                        "id": item.get("videoId"), # Grabs 'DYc9sb-rz4s' directly
+                        "title": item.get("title"),
+                        "thumbnail": thumb_url,
+                        "source": "youtube"
+                    })
+            
+            return parsed_videos[:8] # Limit to top 8 results
+    except Exception as e:
+        print(f"YouTube Parsing Error: {e}")
     return []
 
 # Helper function to query Dailymotion safely
