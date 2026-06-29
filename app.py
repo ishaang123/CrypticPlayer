@@ -13,10 +13,27 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrypticPlayer // Next-Gen Media Nexus</title>
+    
+    <title>CrypticPlayer — Next-Gen Media Nexus | Stream Multi-Platform Hub</title>
+    <meta name="description" content="Discover, search, and aggregate video feeds across multiple platforms seamlessly on CrypticPlayer. Experience decentralized fluid media playback in a high-fidelity theater view.">
+    <meta name="keywords" content="CrypticPlayer, streaming hub, universal media index, dual network video player, video search engine">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://crypticplayer.example.com/">
+    
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://crypticplayer.example.com/">
+    <meta property="og:title" content="CrypticPlayer — Next-Gen Media Nexus">
+    <meta property="og:description" content="Aggregate multi-platform videos cleanly into one unified feed. Smooth web native layout with seamless routing.">
+    <meta property="og:image" content="https://crypticplayer.example.com/og-cover.jpg">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CrypticPlayer — Next-Gen Media Nexus">
+    <meta name="twitter:description" content="Aggregate multi-platform videos cleanly into one unified feed.">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
     <style>
         :root {
             --bg-base: #020205;
@@ -56,6 +73,20 @@ HTML_TEMPLATE = """
             -webkit-font-smoothing: antialiased;
         }
 
+        /* YouTube-Style Top Progress Bar Spinner Loader */
+        #top-loading-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--yt-color), var(--accent));
+            z-index: 9999;
+            transition: width 0.4s ease, opacity 0.4s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+
         header {
             display: flex;
             align-items: center;
@@ -79,10 +110,7 @@ HTML_TEMPLATE = """
             transition: opacity 0.2s var(--transition);
         }
 
-        .logo:hover {
-            opacity: 0.9;
-        }
-
+        .logo:hover { opacity: 0.9; }
         .logo span {
             color: var(--accent);
             background: linear-gradient(135deg, #fbbf24, var(--accent));
@@ -95,6 +123,9 @@ HTML_TEMPLATE = """
             width: 100%;
             max-width: 540px;
         }
+
+        /* Structured Accessibility Forms for Search Engine Parsing */
+        .search-form { width: 100%; }
 
         .search-wrapper {
             display: flex;
@@ -122,9 +153,7 @@ HTML_TEMPLATE = """
             outline: none;
         }
 
-        .search-wrapper input::placeholder {
-            color: #475569;
-        }
+        .search-wrapper input::placeholder { color: #475569; }
 
         .search-wrapper button {
             background: linear-gradient(135deg, #fbbf24, var(--accent));
@@ -232,6 +261,35 @@ HTML_TEMPLATE = """
             border: 1px solid rgba(255, 255, 255, 0.04);
         }
 
+        /* Continuous Skeleton Pulse for Loading Frames */
+        .iframe-loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #090912;
+            z-index: 5;
+            transition: opacity 0.4s var(--transition);
+            pointer-events: none;
+        }
+
+        .iframe-loader .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.05);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         .aspect-ratio-box iframe {
             position: absolute;
             top: 0;
@@ -239,6 +297,8 @@ HTML_TEMPLATE = """
             width: 100%;
             height: 100%;
             border: none;
+            z-index: 2;
+            background: transparent;
         }
 
         .shelf-header {
@@ -267,6 +327,7 @@ HTML_TEMPLATE = """
             gap: 24px;
         }
 
+        /* Transformed markup links to semantic <article> tags */
         .video-card {
             background: var(--bg-surface);
             border-radius: 16px;
@@ -275,6 +336,8 @@ HTML_TEMPLATE = """
             transition: all 0.3s var(--transition);
             border: 1px solid var(--border-glow);
             position: relative;
+            display: block;
+            text-decoration: none;
         }
 
         .video-card:hover {
@@ -302,9 +365,7 @@ HTML_TEMPLATE = """
             transition: transform 0.5s var(--transition);
         }
 
-        .video-card:hover .thumb-wrap img {
-            transform: scale(1.02);
-        }
+        .video-card:hover .thumb-wrap img { transform: scale(1.02); }
 
         .platform-badge {
             position: absolute;
@@ -317,7 +378,7 @@ HTML_TEMPLATE = """
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: #fff;
-            z-index: 2;
+            z-index: 3;
             backdrop-filter: blur(8px);
         }
 
@@ -325,9 +386,7 @@ HTML_TEMPLATE = """
         .platform-badge.dailymotion { background: rgba(59, 130, 246, 0.75); border: 1px solid rgba(59, 130, 246, 0.2); }
         .platform-badge.deezer-match { background: linear-gradient(135deg, rgba(236, 72, 153, 0.8), rgba(124, 58, 237, 0.8)); border: 1px solid rgba(236, 72, 153, 0.3); }
 
-        .card-details {
-            padding: 16px;
-        }
+        .card-details { padding: 16px; }
 
         .card-title {
             font-size: 14px;
@@ -367,29 +426,39 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
+    <div id="top-loading-bar"></div>
+
     <header>
-        <div class="logo" onclick="routeToHome()">Cryptic<span>Player</span></div>
+        <div class="logo" onclick="routeToHome()" role="banner">Cryptic<span>Player</span></div>
         <div class="search-container">
-            <div class="search-wrapper">
-                <input type="text" id="query-input" placeholder="Search platforms, music tags, or artists..." autocomplete="off">
-                <button onclick="commitSearch()">Search</button>
-            </div>
-            <div class="suggestions-box" id="suggestions-box"></div>
+            <form class="search-form" onsubmit="event.preventDefault(); commitSearch();">
+                <div class="search-wrapper">
+                    <input type="text" id="query-input" placeholder="Search platforms, music tags, or artists..." autocomplete="off" aria-label="Search content">
+                    <button type="submit">Search</button>
+                </div>
+            </form>
+            <div class="suggestions-box" id="suggestions-box" aria-live="polite"></div>
         </div>
     </header>
 
     <main>
-        <div class="theater-stage" id="theater-stage">
+        <section class="theater-stage" id="theater-stage" aria-label="Media Player Stage">
             <div class="theater-controls">
                 <button class="close-stage-btn" onclick="hidePlayerStage()">Dismiss Player ×</button>
             </div>
             <div class="aspect-ratio-box">
-                <iframe id="video-embed" src="" allowfullscreen></iframe>
+                <div class="iframe-loader" id="iframe-loader-view">
+                    <div class="spinner"></div>
+                    <p style="font-size: 11px; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase;">Loading Media Buffer...</p>
+                </div>
+                <iframe id="video-embed" src="" allowfullscreen title="Interactive Media Broadcast Stream Player"></iframe>
             </div>
-        </div>
+        </section>
 
-        <h2 class="shelf-header" id="shelf-title">Featured Content Feed</h2>
-        <div class="video-grid" id="video-grid"></div>
+        <section aria-label="Feeds Engine Grid">
+            <h1 class="shelf-header" id="shelf-title">Featured Content Feed</h1>
+            <div class="video-grid" id="video-grid"></div>
+        </section>
     </main>
 
     <script>
@@ -400,6 +469,37 @@ HTML_TEMPLATE = """
 
         const inputEl = document.getElementById('query-input');
         const suggestBox = document.getElementById('suggestions-box');
+        const topBar = document.getElementById('top-loading-bar');
+        const iframeLoader = document.getElementById('iframe-loader-view');
+        const iframeEl = document.getElementById('video-embed');
+
+        // Capture iframe initialization completion event to safely clear visual overlay spinner state
+        iframeEl.addEventListener('load', () => {
+            iframeLoader.style.opacity = '0';
+            setTimeout(() => { iframeLoader.style.display = 'none'; }, 400);
+            finishGlobalLoader();
+        });
+
+        function triggerGlobalLoader() {
+            topBar.style.opacity = '1';
+            topBar.style.width = '30%';
+            let progression = 30;
+            window.loaderInterval = setInterval(() => {
+                if (progression < 85) {
+                    progression += Math.random() * 7;
+                    topBar.style.width = `${progression}%`;
+                }
+            }, 350);
+        }
+
+        function finishGlobalLoader() {
+            clearInterval(window.loaderInterval);
+            topBar.style.width = '100%';
+            setTimeout(() => {
+                topBar.style.opacity = '0';
+                setTimeout(() => { topBar.style.width = '0%'; }, 400);
+            }, 200);
+        }
 
         inputEl.addEventListener('input', () => {
             const val = inputEl.value.trim();
@@ -474,9 +574,7 @@ HTML_TEMPLATE = """
             }
         }
 
-        function hideSuggestions() {
-            suggestBox.style.display = 'none';
-        }
+        function hideSuggestions() { suggestBox.style.display = 'none'; }
 
         document.addEventListener('click', (e) => {
             if (e.target !== inputEl && e.target !== suggestBox) {
@@ -494,6 +592,7 @@ HTML_TEMPLATE = """
                 renderPlayer(v, src);
             } else if (q) {
                 inputEl.value = q;
+                document.getElementById('shelf-title').innerText = `Search results for "${q}"`;
                 fetchUnifiedFeed(`/api/search?q=${encodeURIComponent(q)}`, false);
             } else {
                 hidePlayerStage();
@@ -520,6 +619,7 @@ HTML_TEMPLATE = """
 
         function fetchUnifiedFeed(endpoint, resetPlayer) {
             if (resetPlayer) hidePlayerStage();
+            triggerGlobalLoader();
             const grid = document.getElementById('video-grid');
             grid.innerHTML = '';
             
@@ -539,12 +639,14 @@ HTML_TEMPLATE = """
                 .then(data => {
                     grid.innerHTML = '';
                     if (!data || data.length === 0) {
-                        grid.innerHTML = '<p style="color: var(--text-secondary); font-size:14px;">No index matches found across search clusters.</p>';
+                        grid.innerHTML = '<p style="color: var(--text-secondary); font-size:14px; padding:20px 0;">No index matches found across search clusters.</p>';
+                        finishGlobalLoader();
                         return;
                     }
                     data.forEach(item => {
-                        const card = document.createElement('div');
+                        const card = document.createElement('article');
                         card.className = 'video-card';
+                        card.setAttribute('tabindex', '0');
                         card.onclick = () => selectVideo(item.id, item.source);
                         
                         let subtitle = item.source.toUpperCase();
@@ -555,18 +657,20 @@ HTML_TEMPLATE = """
                         card.innerHTML = `
                             <span class="platform-badge ${item.deezer_meta ? 'deezer-match' : item.source}">${item.deezer_meta ? 'Music Match' : item.source}</span>
                             <div class="thumb-wrap">
-                                <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+                                <img src="${item.thumbnail}" alt="${item.title.replace(/"/g, '&quot;')}" loading="lazy">
                             </div>
                             <div class="card-details">
-                                <p class="card-title" title="${item.title}">${item.title}</p>
+                                <h2 class="card-title" title="${item.title.replace(/"/g, '&quot;')}">${item.title}</h2>
                                 <p class="card-subtitle">${subtitle}</p>
                             </div>
                         `;
                         grid.appendChild(card);
                     });
+                    finishGlobalLoader();
                 })
                 .catch(() => {
-                    grid.innerHTML = '<p style="color: var(--yt-color); font-size:14px;">Search cluster aggregation failure.</p>';
+                    grid.innerHTML = '<p style="color: var(--yt-color); font-size:14px; padding:20px 0;">Search cluster aggregation failure.</p>';
+                    finishGlobalLoader();
                 });
         }
 
@@ -581,13 +685,17 @@ HTML_TEMPLATE = """
         }
 
         function renderPlayer(id, source) {
+            triggerGlobalLoader();
             const stage = document.getElementById('theater-stage');
-            const embedFrame = document.getElementById('video-embed');
+            
+            // Re-initialize loader views on iframe load triggers
+            iframeLoader.style.display = 'flex';
+            iframeLoader.style.opacity = '1';
             
             if (source === 'youtube') {
-                embedFrame.src = `https://invidious.tiekoetter.com/embed/${id}`;
+                iframeEl.src = `https://invidious.tiekoetter.com/embed/${id}`;
             } else if (source === 'dailymotion') {
-                embedFrame.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
+                iframeEl.src = `https://ishaan2-nebulaviwstreaming.hf.space/download?id_or_url=${id}&minimal=true`;
             }
             
             stage.style.display = 'block';
@@ -596,9 +704,8 @@ HTML_TEMPLATE = """
 
         function hidePlayerStage() {
             document.getElementById('theater-stage').style.display = 'none';
-            document.getElementById('video-embed').src = '';
+            iframeEl.src = '';
             
-            // Clean URL back to standard format upon closing player
             const params = new URLSearchParams(window.location.search);
             const q = params.get('q');
             if (q) {
