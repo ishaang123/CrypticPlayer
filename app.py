@@ -955,14 +955,14 @@ def index():
 
 @app.route('/api/trending')
 def trending():
-    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&flags=featured&limit=8"
+    # ADDED localization filters to Dailymotion (&localization=en_US or country=us)
+    # This forces it to pull mainstream trending content instead of random global uploads
+    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&flags=featured&country=us&localization=en_US&limit=8"
     
-    # Bound the executor to 2 workers to save memory under load
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         future_yt = executor.submit(get_youtube_data, "trending?region=US")
         future_dm = executor.submit(get_dailymotion_data, dm_url)
         
-        # Enforce a 5-second timeout so a stalled API doesn't hang your server
         try:
             yt_results = future_yt.result(timeout=5) or []
         except Exception:
@@ -973,15 +973,12 @@ def trending():
         except Exception:
             dm_results = []
             
-    # Perfectly interleave available pairs
     combined = [video for pair in zip(yt_results, dm_results) for video in pair]
     
-    # Efficient slice: grab the tail from whichever list was longer
     min_len = len(combined) // 2
     remaining = yt_results[min_len:] + dm_results[min_len:]
     
     return jsonify(combined + remaining)
-
 @app.route('/api/search')
 def search():
     query = request.args.get('q', '')
