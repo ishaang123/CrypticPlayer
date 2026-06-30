@@ -952,35 +952,58 @@ def check_deezer_music(query):
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
-
 import requests
-
 @app.route('/api/trending')
 def trending():
-    # Fetch real-time trending search tokens directly from YouTube's search bar engine
-    try:
-        r = requests.get("https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=how%20to", timeout=2)
-        # Parse standard jsonp fallback layout e.g. ["how to", ["how to code", "how to build a pc"...]]
-        suggestions = r.json()[1]
-        seed_search = suggestions[random.randint(0, len(suggestions)-1)][0]
-    except Exception:
-        seed_search = "trending music" # robust backup fallback
-
-    yt_query = f"search?q={seed_search}&filter=videos&region=US"
-    dm_url = f"https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&search={seed_search}&country=us&localization=en_US&limit=10"
+    # 1. Target highly curated, engaging entertainment search terms instead of generic trends
+    # This completely bypasses the uncurated, bot-driven global trending loops
+    premium_topics = [
+        "official movie trailer 2026", 
+        "tech review unboxing", 
+        "gaming walkthrough gameplay", 
+        "space science documentary"
+    ]
+    # Pick a distinct high-quality angle for this page load
+    import random
+    selected_angle = random.choice(premium_topics)
+    
+    # 2. Build premium localized endpoints
+    yt_query = f"search?q={selected_angle}&filter=videos&region=US"
+    dm_url = f"https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&search={selected_angle}&country=us&localization=en_US&limit=12"
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         future_yt = executor.submit(get_youtube_data, yt_query)
         future_dm = executor.submit(get_dailymotion_data, dm_url)
         
-        yt_results = future_yt.result(timeout=4) or []
-        dm_results = future_dm.result(timeout=4) or []
-        
-    combined = [video for pair in zip(yt_results, dm_results) for video in pair]
-    min_len = len(combined) // 2
-    remaining = yt_results[min_len:] + dm_results[min_len:]
+        try:
+            yt_results = future_yt.result(timeout=5) or []
+        except Exception:
+            yt_results = []
+            
+        try:
+            dm_results = future_dm.result(timeout=5) or []
+        except Exception:
+            dm_results = []
+            
+    # 3. SPAM BLOCKER: Drop titles packed with algorithmic playlist clickbait
+    trash_keywords = ["top hits", "playlist", "songs", "compilation", "relaxing music", "chill mix", "tiktok compilation"]
     
-    return jsonify(combined + remaining)
+    clean_yt = [
+        v for v in yt_results 
+        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
+    ]
+    clean_dm = [
+        v for v in dm_results 
+        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
+    ]
+            
+    # 4. Seamlessly interleave the high-quality items
+    combined = [video for pair in zip(clean_yt, clean_dm) for video in pair]
+    min_len = len(combined) // 2
+    remaining = clean_yt[min_len:] + clean_dm[min_len:]
+    
+    # Return top 12 highly premium items
+    return jsonify((combined + remaining)[:12])
 @app.route('/api/search')
 def search():
     query = request.args.get('q', '')
