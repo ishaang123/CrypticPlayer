@@ -953,28 +953,30 @@ def check_deezer_music(query):
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+import requests
+
 @app.route('/api/trending')
 def trending():
-    # ADDED localization filters to Dailymotion (&localization=en_US or country=us)
-    # This forces it to pull mainstream trending content instead of random global uploads
-    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&flags=featured&country=us&localization=en_US&limit=8"
+    # Fetch real-time trending search tokens directly from YouTube's search bar engine
+    try:
+        r = requests.get("https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=how%20to", timeout=2)
+        # Parse standard jsonp fallback layout e.g. ["how to", ["how to code", "how to build a pc"...]]
+        suggestions = r.json()[1]
+        seed_search = suggestions[random.randint(0, len(suggestions)-1)][0]
+    except Exception:
+        seed_search = "trending music" # robust backup fallback
+
+    yt_query = f"search?q={seed_search}&filter=videos&region=US"
+    dm_url = f"https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&search={seed_search}&country=us&localization=en_US&limit=10"
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        future_yt = executor.submit(get_youtube_data, "trending?region=US")
+        future_yt = executor.submit(get_youtube_data, yt_query)
         future_dm = executor.submit(get_dailymotion_data, dm_url)
         
-        try:
-            yt_results = future_yt.result(timeout=5) or []
-        except Exception:
-            yt_results = []
-            
-        try:
-            dm_results = future_dm.result(timeout=5) or []
-        except Exception:
-            dm_results = []
-            
+        yt_results = future_yt.result(timeout=4) or []
+        dm_results = future_dm.result(timeout=4) or []
+        
     combined = [video for pair in zip(yt_results, dm_results) for video in pair]
-    
     min_len = len(combined) // 2
     remaining = yt_results[min_len:] + dm_results[min_len:]
     
