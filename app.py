@@ -79,7 +79,6 @@ def check_deezer_music(query):
 
 @app.route('/')
 def index():
-    # Expects templates/index.html to exist in your repository layout
     return render_template("index.html")
 
 @app.route('/api/search')
@@ -127,11 +126,12 @@ def search():
 
 @app.route('/api/trending')
 def trending():
-    # 1. Build true general trending endpoints
+    # 1. Target general trends, but bind Dailymotion to premium content channels
+    # Filtering Dailymotion by verified premium channels or standard news/creative niches drops the bot scripts
     yt_endpoint = "trending?region=US"
-    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&localization=en_US&limit=15"
+    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&channel=news,sport,tech,screen&country=us&localization=en_US&limit=25"
     
-    # 2. Inline Concurrent Fetching for Trending Stream
+    # 2. Inline Concurrent Fetching
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         
         def fetch_yt():
@@ -190,10 +190,12 @@ def trending():
         yt_results = future_yt.result()
         dm_results = future_dm.result()
             
-    # 3. SPAM BLOCKER
+    # 3. ADVANCED SPAM FILTER: Purges web-novel, micro-drama bots and clickbait loops
     trash_keywords = {
         "top hits", "playlist", "songs", "compilation", "relaxing music", 
-        "chill mix", "tiktok compilation", "lofi", "full album", "loop"
+        "chill mix", "tiktok compilation", "lofi", "full album", "loop",
+        "full ep", "full episode", "engsub", "english sub", "stole my guy", 
+        "emperor", "archmage", "hidden king", "beggar", "swapped to", "regret came"
     }
     
     clean_yt = [
@@ -205,7 +207,7 @@ def trending():
         if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
     ]
     
-    # 4. Alternating / Interleaving Algorithm
+    # 4. Strict Interleaving (Alternates 1 YouTube, 1 Dailymotion cleanly)
     combined = []
     i, j = 0, 0
     
