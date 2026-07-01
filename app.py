@@ -126,17 +126,15 @@ def search():
 
 @app.route('/api/trending')
 def trending():
-    # 1. Broad generic queries to pull organic, highly populated videos from your working search instance
-    search_terms = ["music video", "news", "documentary"]
-    selected_term = random.choice(search_terms)
+    # 1. Fun, high-energy generic queries to pull back real content creators
+    yt_search_terms = ["official music video", "gaming tournament", "speedrun history"]
+    selected_term = random.choice(yt_search_terms)
     
-    # Configure your working search instance for YouTube and a wide range for Dailymotion
     yt_search_endpoint = f"search?q={selected_term}&filter=videos"
-    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&localization=en_US&limit=25"
+    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&localization=en_US&limit=35"
     
-    # 2. Parallel thread handling to load both sources at the exact same time
+    # 2. Parallel fetching 
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        
         def fetch_yt():
             try:
                 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -193,19 +191,32 @@ def trending():
         yt_results = future_yt.result()
         dm_results = future_dm.result()
             
-    # 3. ANTI-BOT & TRASH BLOCKER
-    # Keeps legitimate media intact, immediately vaporizing automated text dramas
+    # 3. ADVANCED PATTERN & KEYWORD BLOCKER
     trash_keywords = {
         "short drama", "serie completa", "reborn", "archmage", "xxl wife", 
         "gifted her my", "stole my guy", "swapped to a beggar", "hidden king", 
         "regret came too late", "lace me up my queen", "little prince is hiding",
-        "full ep ", "full episode", "engsub", "english sub", "never-ending summer"
+        "full ep ", "full episode", "engsub", "english sub", "never-ending summer",
+        "abandoned baby", "left pregnant", "not the bride", "unwanted bride",
+        "news", "broadcast", "headlines" # Added news keywords here to completely block accidental slip-ins
     }
     
-    clean_yt = [v for v in yt_results if not any(bad in v.get('title', '').lower() for bad in trash_keywords)]
-    clean_dm = [v for v in dm_results if not any(bad in v.get('title', '').lower() for bad in trash_keywords)]
+    trash_symbols = [":||", "🍿🍿", "🔝", "❤️‍"]
+
+    def is_clean(video_item):
+        title = video_item.get('title', '')
+        title_lower = title.lower()
+        
+        if any(bad in title_lower for bad in trash_keywords):
+            return False
+        if any(sym in title for sym in trash_symbols):
+            return False
+        return True
+
+    clean_yt = [v for v in yt_results if is_clean(v)]
+    clean_dm = [v for v in dm_results if is_clean(v)]
     
-    # 4. Alternating Interleaving Algorithm (1 YT, 1 Dailymotion back and forth)
+    # 4. PERFECT INTERLEAVING RATIO
     combined = []
     i, j = 0, 0
     
@@ -218,11 +229,14 @@ def trending():
     combined.extend(clean_yt[i:])
     combined.extend(clean_dm[j:])
     
-    # Absolute safety fallback case if an API drops out entirely
+    if clean_yt and clean_dm:
+        final_pool = combined[:16]
+        random.shuffle(final_pool)
+        return jsonify(final_pool)
+        
     if not combined:
         combined = clean_yt if clean_yt else clean_dm
     
-    # Returns 16 perfectly interleaved, bot-free active video entries
     return jsonify(combined[:16])
 
 if __name__ == '__main__':
