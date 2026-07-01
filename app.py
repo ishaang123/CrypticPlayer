@@ -123,121 +123,69 @@ def search():
     sorted_videos = sorted(all_videos, key=lambda x: 0 if x.get("deezer_meta") else 1)
 
     return jsonify(sorted_videos[:16])
-
 @app.route('/api/trending')
 def trending():
-    # 1. Fun, high-energy generic queries to pull back real content creators
-    yt_search_terms = ["official music video", "gaming tournament", "speedrun history"]
-    selected_term = random.choice(yt_search_terms)
+    # 1. Base seeds to pull real, high-energy autocomplete suggestions from YouTube
+    seeds = ["official music video", "gaming mix", "speedrun", "live performance", "album mix"]
+    chosen_seed = random.choice(seeds)
     
-    yt_search_endpoint = f"search?q={selected_term}&filter=videos"
-    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&localization=en_US&limit=35"
+    # 2. Fetch live search suggestions to discover what's trending right now
+    # We query the open suggestions API anonymously
+    suggestion_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={chosen_seed}"
     
-    # 2. Parallel fetching 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        def fetch_yt():
-            try:
-                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-                r = requests.get(f"{YOUTUBE_PROXY_API}/api/v1/{yt_search_endpoint}", headers=headers, timeout=4)
-                if r.status_code == 200:
-                    raw_data = r.json()
-                    items = raw_data.get("textualResults", raw_data) if isinstance(raw_data, dict) else raw_data
-                    
-                    parsed_videos = []
-                    for item in items:
-                        if item.get("type") == "video":
-                            v_id = item.get("videoId")
-                            if not v_id:
-                                continue
-                                
-                            thumbnails = item.get("videoThumbnails", [])
-                            thumb_url = ""
-                            if thumbnails:
-                                thumb_url = next((t["url"] for t in thumbnails if t.get("quality") == "medium"), thumbnails[0]["url"])
-                            
-                            if not thumb_url or thumb_url.startswith("/vi/") or not thumb_url.startswith("http"):
-                                thumb_url = f"https://img.youtube.com/vi/{v_id}/0.jpg"
-                                
-                            parsed_videos.append({
-                                "id": v_id,
-                                "title": item.get("title"),
-                                "thumbnail": thumb_url,
-                                "source": "youtube",
-                                "deezer_meta": None
-                            })
-                    return parsed_videos
-                return []
-            except Exception:
-                return []
+    enhanced_query = chosen_seed  # Fallback if suggestion engine fails
+    try:
+        r_suggest = requests.get(suggestion_url, timeout=3)
+        if r_suggest.status_code == 200:
+            suggestions = r_suggest.json()[1]
+            if suggestions:
+                # Pick a random live suggestion (e.g., "official music video 2026" or a trending song name)
+                enhanced_query = random.choice(suggestions)
+    except Exception:
+        pass
 
-        def fetch_dm():
-            try:
-                r = requests.get(dm_url, timeout=4)
-                if r.status_code == 200:
-                    return [{
-                        "id": v["id"], 
-                        "title": v["title"], 
-                        "thumbnail": v["thumbnail_360_url"], 
-                        "source": "dailymotion",
-                        "deezer_meta": None
-                    } for v in r.json().get("list", [])]
-                return []
-            except Exception:
-                return []
-
-        future_yt = executor.submit(fetch_yt)
-        future_dm = executor.submit(fetch_dm)
-        
-        yt_results = future_yt.result()
-        dm_results = future_dm.result()
+    # 3. Request the fresh trending query from your working Invidious search engine
+    yt_search_endpoint = f"search?q={enhanced_query}&filter=videos"
+    
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        r = requests.get(f"{YOUTUBE_PROXY_API}/api/v1/{yt_search_endpoint}", headers=headers, timeout=5)
+        if r.status_code == 200:
+            raw_data = r.json()
+            items = raw_data.get("textualResults", raw_data) if isinstance(raw_data, dict) else raw_data
             
-    # 3. ADVANCED PATTERN & KEYWORD BLOCKER
-    trash_keywords = {
-        "short drama", "serie completa", "reborn", "archmage", "xxl wife", 
-        "gifted her my", "stole my guy", "swapped to a beggar", "hidden king", 
-        "regret came too late", "lace me up my queen", "little prince is hiding",
-        "full ep ", "full episode", "engsub", "english sub", "never-ending summer",
-        "abandoned baby", "left pregnant", "not the bride", "unwanted bride",
-        "news", "broadcast", "headlines" # Added news keywords here to completely block accidental slip-ins
-    }
-    
-    trash_symbols = [":||", "🍿🍿", "🔝", "❤️‍"]
+            parsed_videos = []
+            for item in items:
+                if item.get("type") == "video":
+                    v_id = item.get("videoId")
+                    if not v_id:
+                        continue
+                        
+                    thumbnails = item.get("videoThumbnails", [])
+                    thumb_url = ""
+                    if thumbnails:
+                        thumb_url = next((t["url"] for t in thumbnails if t.get("quality") == "medium"), thumbnails[0]["url"])
+                    
+                    if not thumb_url or thumb_url.startswith("/vi/") or not thumb_url.startswith("http"):
+                        thumb_url = f"https://img.youtube.com/vi/{v_id}/0.jpg"
+                        
+                    parsed_videos.append({
+                        "id": v_id,
+                        "title": item.get("title"),
+                        "thumbnail": thumb_url,
+                        "source": "youtube",
+                        "deezer_meta": None
+                    })
+            
+            # Since Dailymotion is dropped, shuffle the clean YouTube results slightly 
+            # so the grid layout looks entirely organic on refresh
+            random.shuffle(parsed_videos)
+            return jsonify(parsed_videos[:16])
+            
+    except Exception:
+        pass
 
-    def is_clean(video_item):
-        title = video_item.get('title', '')
-        title_lower = title.lower()
-        
-        if any(bad in title_lower for bad in trash_keywords):
-            return False
-        if any(sym in title for sym in trash_symbols):
-            return False
-        return True
-
-    clean_yt = [v for v in yt_results if is_clean(v)]
-    clean_dm = [v for v in dm_results if is_clean(v)]
-    
-    # 4. PERFECT INTERLEAVING RATIO
-    combined = []
-    i, j = 0, 0
-    
-    while i < len(clean_yt) and j < len(clean_dm):
-        combined.append(clean_yt[i])
-        combined.append(clean_dm[j])
-        i += 1
-        j += 1
-        
-    combined.extend(clean_yt[i:])
-    combined.extend(clean_dm[j:])
-    
-    if clean_yt and clean_dm:
-        final_pool = combined[:16]
-        random.shuffle(final_pool)
-        return jsonify(final_pool)
-        
-    if not combined:
-        combined = clean_yt if clean_yt else clean_dm
-    
-    return jsonify(combined[:16])
+    return jsonify([]) # Fallback empty list if everything times out
 
 if __name__ == '__main__':
     app.run(debug=True)
