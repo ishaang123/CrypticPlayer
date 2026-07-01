@@ -125,26 +125,31 @@ def search():
     return jsonify(sorted_videos[:16])
 @app.route('/api/trending')
 def trending():
-    # 1. Base seeds to pull real, high-energy autocomplete suggestions from YouTube
-    seeds = ["official music video", "gaming mix", "speedrun", "live performance", "album mix"]
+    # 1. Broad pool of high-quality seeds across gaming, music, tech, and entertainment
+    seeds = [
+        "official music video", "gaming tournament", "speedrun history", 
+        "live performance", "album mix", "lofi hip hop radio", "game soundtrack",
+        "esports grand finals", "indie game showcase", "tech review 2026", 
+        "behind the scenes movie", "animation short", "music festival live", 
+        "synthwave mix", "game dev log", "acoustic session", "modded playthrough",
+        "orchestral cover", "combo video compilation", "retro gaming retrospective"
+    ]
     chosen_seed = random.choice(seeds)
     
-    # 2. Fetch live search suggestions to discover what's trending right now
-    # We query the open suggestions API anonymously
+    # 2. Fetch live search suggestions to find active topics on YouTube
     suggestion_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={chosen_seed}"
-    
     enhanced_query = chosen_seed  # Fallback if suggestion engine fails
+    
     try:
         r_suggest = requests.get(suggestion_url, timeout=3)
         if r_suggest.status_code == 200:
             suggestions = r_suggest.json()[1]
             if suggestions:
-                # Pick a random live suggestion (e.g., "official music video 2026" or a trending song name)
                 enhanced_query = random.choice(suggestions)
     except Exception:
         pass
 
-    # 3. Request the fresh trending query from your working Invidious search engine
+    # 3. Query your working Invidious search engine with the dynamic topic
     yt_search_endpoint = f"search?q={enhanced_query}&filter=videos"
     
     try:
@@ -177,15 +182,13 @@ def trending():
                         "deezer_meta": None
                     })
             
-            # Since Dailymotion is dropped, shuffle the clean YouTube results slightly 
-            # so the grid layout looks entirely organic on refresh
+            # Shuffle the results so the feed changes dynamically on every page load
             random.shuffle(parsed_videos)
             return jsonify(parsed_videos[:16])
             
     except Exception:
         pass
 
-    return jsonify([]) # Fallback empty list if everything times out
-
+    return jsonify([])
 if __name__ == '__main__':
     app.run(debug=True)
