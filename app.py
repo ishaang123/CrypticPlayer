@@ -7,8 +7,6 @@ app = Flask(__name__)
 # Configured backends
 YOUTUBE_PROXY_API = "https://yt.chocolatemoo53.com"
 
-app = Flask(__name__)
-
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
