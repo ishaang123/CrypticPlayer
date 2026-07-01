@@ -952,88 +952,7 @@ def check_deezer_music(query):
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
-import requests
-import random
-import concurrent.futures
-from flask import Flask, jsonify
-@app.route('/api/trending')
-def trending():
-    # 1. Target highly curated, engaging entertainment search terms
-    premium_topics = [
-        "official movie trailer 2026", 
-        "tech review unboxing", 
-        "gaming walkthrough gameplay", 
-        "space science documentary",
-        "new sci-fi movie teaser",
-        "next-gen gadget hands on"
-    ]
-    
-    # Pick a distinct high-quality angle for this page load
-    selected_angle = random.choice(premium_topics)
-    
-    # 2. Build premium localized endpoints
-    yt_query = f"search?q={selected_angle}&filter=videos&region=US"
-    dm_url = f"https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&search={selected_angle}&country=us&localization=en_US&limit=15"
-    
-    # Inline network requests via ThreadPoolExecutor
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        # We define the HTTP/API logic directly inside the lambdas/sub-tasks if needed,
-        # but using your architecture, we place the fetch logic directly in the submission blocks.
-        
-        def fetch_yt():
-            try:
-                # Replace this block with your actual YouTube request logic
-                # e.g., return requests.get(f"https://api.youtube.com/...{yt_query}").json().get('items', [])
-                return [{"id": "yt1", "title": f"Ultimate {selected_angle} Reveal 2026"}]
-            except Exception:
-                return []
 
-        def fetch_dm():
-            try:
-                # Replace this block with your actual Dailymotion request logic
-                # e.g., return requests.get(dm_url).json().get('list', [])
-                return [{"id": "dm1", "title": f"Exclusive {selected_angle} Deep Dive"}]
-            except Exception:
-                return []
-
-        future_yt = executor.submit(fetch_yt)
-        future_dm = executor.submit(fetch_dm)
-        
-        yt_results = future_yt.result(timeout=4)
-        dm_results = future_dm.result(timeout=4)
-            
-    # 3. SPAM BLOCKER: Filter out low-effort algorithmic clutter using a fast-lookup set
-    trash_keywords = {
-        "top hits", "playlist", "songs", "compilation", "relaxing music", 
-        "chill mix", "tiktok compilation", "lofi", "full album", "loop"
-    }
-    
-    clean_yt = [
-        v for v in yt_results 
-        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
-    ]
-    clean_dm = [
-        v for v in dm_results 
-        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
-    ]
-    
-    # 4. Seamlessly interleave the items dynamically without array slicing bugs
-    combined = []
-    i, j = 0, 0
-    
-    # Alternate perfectly between YouTube and Dailymotion while both have items
-    while i < len(clean_yt) and j < len(clean_dm):
-        combined.append(clean_yt[i])
-        combined.append(clean_dm[j])
-        i += 1
-        j += 1
-        
-    # Append any remaining videos from whichever list was longer
-    combined.extend(clean_yt[i:])
-    combined.extend(clean_dm[j:])
-    
-    # Return exactly the top 12 highly premium, clean items
-    return jsonify(combined[:12])
 @app.route('/api/search')
 def search():
     query = request.args.get('q', '')
@@ -1076,6 +995,124 @@ def search():
     sorted_videos = sorted(all_videos, key=lambda x: 0 if x.get("deezer_meta") else 1)
 
     return jsonify(sorted_videos[:16])
+
+import random
+import concurrent.futures
+import requests  # Make sure to pip install requests
+from flask import Flask, jsonify
+Got it! If we are dropping the custom search queries entirely and hitting raw global trends, we can use the dedicated /api/v1/trending endpoint provided directly by Invidious. For Dailymotion, we will hit their high-view, general trending list instead of filtered search terms.
+
+Here is the clean, self-contained /api/trending route that fetches actual live global trends, matches your exact parsing logic, and keeps everything inside a single route context:
+
+Python
+import concurrent.futures
+import requests  # Make sure to pip install requests
+from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+# Config mapping for the proxy
+YOUTUBE_PROXY_API = "https://yt.chocolatemoo53.com"
+
+@app.route('/api/trending')
+def trending():
+    # 1. Build true general trending endpoints
+    # Hit the explicit Invidious native trending API route
+    yt_endpoint = "trending?region=US"
+    # Hit the globally trending Dailymotion route (sorted by most views today)
+    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&localization=en_US&limit=15"
+    
+    # 2. Inline Concurrent Fetching
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        
+        def fetch_yt():
+            try:
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                r = requests.get(f"{YOUTUBE_PROXY_API}/api/v1/{yt_endpoint}", headers=headers, timeout=4)
+                if r.status_code == 200:
+                    raw_data = r.json()
+                    # Parse trending array cleanly
+                    items = raw_data.get("textualResults", raw_data) if isinstance(raw_data, dict) else raw_data
+                    
+                    parsed_videos = []
+                    for item in items:
+                        # Invidious trends return video types directly
+                        if item.get("type", "video") == "video":
+                            v_id = item.get("videoId")
+                            if not v_id:
+                                continue
+                                
+                            thumbnails = item.get("videoThumbnails", [])
+                            thumb_url = ""
+                            if thumbnails:
+                                thumb_url = next((t["url"] for t in thumbnails if t.get("quality") == "medium"), thumbnails[0]["url"])
+                            
+                            if not thumb_url or thumb_url.startswith("/vi/") or not thumb_url.startswith("http"):
+                                thumb_url = f"https://img.youtube.com/vi/{v_id}/0.jpg"
+                                
+                            parsed_videos.append({
+                                "id": v_id,
+                                "title": item.get("title"),
+                                "thumbnail": thumb_url,
+                                "source": "youtube",
+                                "deezer_meta": None
+                            })
+                    return parsed_videos
+                return []
+            except Exception:
+                return []
+
+        def fetch_dm():
+            try:
+                r = requests.get(dm_url, timeout=4)
+                if r.status_code == 200:
+                    return [{
+                        "id": v["id"], 
+                        "title": v["title"], 
+                        "thumbnail": v["thumbnail_360_url"], 
+                        "source": "dailymotion",
+                        "deezer_meta": None
+                    } for v in r.json().get("list", [])]
+                return []
+            except Exception:
+                return []
+
+        future_yt = executor.submit(fetch_yt)
+        future_dm = executor.submit(fetch_dm)
+        
+        yt_results = future_yt.result()
+        dm_results = future_dm.result()
+            
+    # 3. SPAM BLOCKER: Still filters out generic playlist/music loops if present
+    trash_keywords = {
+        "top hits", "playlist", "songs", "compilation", "relaxing music", 
+        "chill mix", "tiktok compilation", "lofi", "full album", "loop"
+    }
+    
+    clean_yt = [
+        v for v in yt_results 
+        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
+    ]
+    clean_dm = [
+        v for v in dm_results 
+        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
+    ]
+    
+    # 4. Alternating / Interleaving Algorithm
+    combined = []
+    i, j = 0, 0
+    
+    while i < len(clean_yt) and j < len(clean_dm):
+        combined.append(clean_yt[i])
+        combined.append(clean_dm[j])
+        i += 1
+        j += 1
+        
+    combined.extend(clean_yt[i:])
+    combined.extend(clean_dm[j:])
+    
+    # Return top 12 globally trending, processed video streams
+    return jsonify(combined[:12])
 
 if __name__ == '__main__':
     app.run(debug=True)
