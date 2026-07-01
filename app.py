@@ -126,21 +126,55 @@ def search():
 
 @app.route('/api/trending')
 def trending():
-    # Since Invidious instances are globally rate-limited or breaking on trends,
-    # we pull diverse, multi-category feeds from Dailymotion to build a robust, clean layout.
-    dm_endpoints = [
-        "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&limit=15",
-        "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&channel=music&sort=visited&country=us&limit=10",
-        "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&channel=tech&sort=visited&country=us&limit=10"
-    ]
+    # 1. Broad generic queries to pull organic, highly populated videos from your working search instance
+    search_terms = ["music video", "news", "documentary"]
+    selected_term = random.choice(search_terms)
     
-    all_dm_results = []
+    # Configure your working search instance for YouTube and a wide range for Dailymotion
+    yt_search_endpoint = f"search?q={selected_term}&filter=videos"
+    dm_url = "https://api.dailymotion.com/videos?fields=id,title,thumbnail_360_url&sort=trending&country=us&localization=en_US&limit=25"
     
-    # Inline parallel fetching across the working channels
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        def fetch_url(url):
+    # 2. Parallel thread handling to load both sources at the exact same time
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        
+        def fetch_yt():
             try:
-                r = requests.get(url, timeout=3)
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                r = requests.get(f"{YOUTUBE_PROXY_API}/api/v1/{yt_search_endpoint}", headers=headers, timeout=4)
+                if r.status_code == 200:
+                    raw_data = r.json()
+                    items = raw_data.get("textualResults", raw_data) if isinstance(raw_data, dict) else raw_data
+                    
+                    parsed_videos = []
+                    for item in items:
+                        if item.get("type") == "video":
+                            v_id = item.get("videoId")
+                            if not v_id:
+                                continue
+                                
+                            thumbnails = item.get("videoThumbnails", [])
+                            thumb_url = ""
+                            if thumbnails:
+                                thumb_url = next((t["url"] for t in thumbnails if t.get("quality") == "medium"), thumbnails[0]["url"])
+                            
+                            if not thumb_url or thumb_url.startswith("/vi/") or not thumb_url.startswith("http"):
+                                thumb_url = f"https://img.youtube.com/vi/{v_id}/0.jpg"
+                                
+                            parsed_videos.append({
+                                "id": v_id,
+                                "title": item.get("title"),
+                                "thumbnail": thumb_url,
+                                "source": "youtube",
+                                "deezer_meta": None
+                            })
+                    return parsed_videos
+                return []
+            except Exception:
+                return []
+
+        def fetch_dm():
+            try:
+                r = requests.get(dm_url, timeout=4)
                 if r.status_code == 200:
                     return [{
                         "id": v["id"], 
@@ -149,29 +183,47 @@ def trending():
                         "source": "dailymotion",
                         "deezer_meta": None
                     } for v in r.json().get("list", [])]
+                return []
             except Exception:
-                pass
-            return []
+                return []
 
-        futures = [executor.submit(fetch_url, url) for url in dm_endpoints]
-        for future in concurrent.futures.as_completed(futures):
-            all_dm_results.extend(future.result())
+        future_yt = executor.submit(fetch_yt)
+        future_dm = executor.submit(fetch_dm)
+        
+        yt_results = future_yt.result()
+        dm_results = future_dm.result()
             
-    # Relaxed spam filter targeting web-novel text scripts
+    # 3. ANTI-BOT & TRASH BLOCKER
+    # Keeps legitimate media intact, immediately vaporizing automated text dramas
     trash_keywords = {
-        "stole my guy", "swapped to a beggar", "hidden king", 
-        "regret came too late", "lace me up my queen", "little prince is hiding"
+        "short drama", "serie completa", "reborn", "archmage", "xxl wife", 
+        "gifted her my", "stole my guy", "swapped to a beggar", "hidden king", 
+        "regret came too late", "lace me up my queen", "little prince is hiding",
+        "full ep ", "full episode", "engsub", "english sub", "never-ending summer"
     }
     
-    clean_videos = [
-        v for v in all_dm_results 
-        if not any(bad in v.get('title', '').lower() for bad in trash_keywords)
-    ]
+    clean_yt = [v for v in yt_results if not any(bad in v.get('title', '').lower() for bad in trash_keywords)]
+    clean_dm = [v for v in dm_results if not any(bad in v.get('title', '').lower() for bad in trash_keywords)]
     
-    # Shuffle slightly so it feels like a diverse, custom network feed every refresh
-    random.shuffle(clean_videos)
+    # 4. Alternating Interleaving Algorithm (1 YT, 1 Dailymotion back and forth)
+    combined = []
+    i, j = 0, 0
     
-    return jsonify(clean_videos[:16])
+    while i < len(clean_yt) and j < len(clean_dm):
+        combined.append(clean_yt[i])
+        combined.append(clean_dm[j])
+        i += 1
+        j += 1
+        
+    combined.extend(clean_yt[i:])
+    combined.extend(clean_dm[j:])
+    
+    # Absolute safety fallback case if an API drops out entirely
+    if not combined:
+        combined = clean_yt if clean_yt else clean_dm
+    
+    # Returns 16 perfectly interleaved, bot-free active video entries
+    return jsonify(combined[:16])
 
 if __name__ == '__main__':
     app.run(debug=True)
